@@ -95,9 +95,9 @@ function showPendingLines(){
  board.append(svg);setTimeout(()=>{if(svg.isConnected)svg.remove()},1300);
 }
 function cards(){ $('cards').innerHTML='';R.forEach(r=>{let n=party.filter(x=>x===r.id).length,b=document.createElement('button');b.className='card'+(n?' chosen':'');b.innerHTML='<b>'+r.i+' '+r.n+(n?' ×'+n:'')+'</b><br><span class="muted">HP '+r.hp+' / 攻撃 '+r.a+' / 射程 '+r.r+'</span><br><span class="muted">'+r.s+'</span>';b.onclick=()=>{if(party.length<3)party.push(r.id);else if(n)party.splice(party.lastIndexOf(r.id),1);cards()};$('cards').append(b)});$('party').textContent=party.map(x=>role(x).n).join(' / ');$('count').textContent='選択：'+party.length+' / 3';$('next').disabled=party.length!==3}
-function selectMode(which){gameMode=which;$('modeSelect').classList.add('hidden');$('setup').classList.remove('hidden');setupTeam='p1';party=[];party1=[];party2=[];$('setupTitle').textContent='1. プレイヤー1のパーティー編成';$('setupDesc').textContent='14種類から3体選択。重複OK。';$('next').textContent='配置へ進む';cards()}
+function selectMode(which){gameMode=which;$('modeSelect').classList.add('hidden');$('setup').classList.remove('hidden');setupTeam='p1';party=[];party1=[];party2=[];$('setupTitle').textContent=which==='online'?'自分のパーティー編成':'1. プレイヤー1のパーティー編成';$('setupDesc').textContent='14種類から3体選択。重複OK。';$('next').textContent='配置へ進む';cards()}
 function chooseCpuDifficulty(level){cpuDifficulty=level;selectMode('cpu')}
-function setupNext(){if(party.length!==3)return;if(setupTeam==='p1'){party1=party.slice();p1Placed=[];if(gameMode==='cpu'){party2=R.map(r=>r.id).sort(()=>Math.random()-0.5).slice(0,3);placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。CPUの編成は自動で決まります。';$('start').textContent='CPU戦を開始';return}party=[];setupTeam='p2';$('setupTitle').textContent='1. プレイヤー2のパーティー編成';$('setupDesc').textContent='プレイヤー2も14種類から3体選択。重複OK。';$('next').textContent='プレイヤー2の編成を確定';cards()}else{party2=party.slice();placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。';$('start').textContent='プレイヤー1の配置完了';}}
+function setupNext(){if(party.length!==3)return;if(setupTeam==='p1'){party1=party.slice();p1Placed=[];if(gameMode==='online'){party2=[];placeTeam=onlineLocalTeam;party=party1.slice();place();$('placementTitle').textContent='自分のチームの初期配置';$('placementDesc').textContent='空いているマスに自分の3体を配置してください。配置データのオンライン同期は次の段階で実装します。';$('start').textContent='配置を確定';return}if(gameMode==='cpu'){party2=R.map(r=>r.id).sort(()=>Math.random()-0.5).slice(0,3);placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。CPUの編成は自動で決まります。';$('start').textContent='CPU戦を開始';return}party=[];setupTeam='p2';$('setupTitle').textContent='1. プレイヤー2のパーティー編成';$('setupDesc').textContent='プレイヤー2も14種類から3体選択。重複OK。';$('next').textContent='プレイヤー2の編成を確定';cards()}else{party2=party.slice();placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。';$('start').textContent='プレイヤー1の配置完了';}}
 function place(){ $('setup').classList.add('hidden');$('placement').classList.remove('hidden');pu=party.map((r,i)=>({id:placeTeam+i,team:placeTeam,role:r,hp:role(r).hp,x:null,y:null,def:0,moved:false,attacked:false,special:false}));window.placeSel=0;placeBtns();makeBoard($('placeBoard'),true);$('placeCount').textContent='配置：0 / 3';$('start').disabled=true}
 function placeBtns(){$('placeBtns').innerHTML=pu.map((u,i)=>'<button class="'+(i===window.placeSel?'primary':'')+'" onclick="window.placeSel='+i+';placeBtns()">'+(i+1)+'. '+role(u.role).n+(u.x!==null?' ✓':'')+'</button>').join('')}
 function movementSealsFor(unit){return [...new Set(units.filter(v=>v.role==='curse'&&alive(v)).flatMap(c=>c.seals||[]).filter(s=>s.targetId===unit.id).map(s=>s.direction))]}
@@ -148,7 +148,7 @@ function wallDamagePenalty(a,b){
  return crossedWalls.some(w=>a.team!==w.owner);
 }
 function placeClick(x,y){if((placeTeam==='p1'&&y<5)||(placeTeam==='p2'&&y>=5)){return}let u=pu[window.placeSel];if(!u)return;if([...p1Placed,...pu].some(v=>v!==u&&v.x===x&&v.y===y)){return}u.x=x;u.y=y;makeBoard($('placeBoard'),true);placeBtns();let n=pu.filter(v=>v.x!==null).length;$('placeCount').textContent='配置：'+n+' / 3';$('start').disabled=n!==3}
-function placementNext(){if(pu.filter(v=>v.x!==null).length!==3)return;if(placeTeam==='p1'){p1Placed=pu.map(u=>({...u}));if(gameMode==='cpu'){pu=party2.map((r,i)=>({id:'p2'+i,team:'p2',role:r,hp:role(r).hp,x:[2,5,8][i],y:1,def:0,moved:false,attacked:false,special:false}));begin();return}placeTeam='p2';party=party2.slice();$('placementTitle').textContent='2. プレイヤー2の初期配置';$('placementDesc').textContent='上側5列（赤）の空きマスに3体を配置してください。';$('start').textContent='戦闘開始';place();}else begin()}
+function placementNext(){if(pu.filter(v=>v.x!==null).length!==3)return;if(gameMode==='online'){p1Placed=pu.map(u=>({...u}));$('placementDesc').textContent='自分のチームの配置を保存しました。この版では相手への送信・戦闘開始同期はまだ未実装です。';$('start').textContent='配置済み';$('start').disabled=true;$('start').insertAdjacentHTML('afterend',' <button id="onlineBack">モード選択へ戻る</button>');$('onlineBack').onclick=()=>location.reload();return}if(placeTeam==='p1'){p1Placed=pu.map(u=>({...u}));if(gameMode==='cpu'){pu=party2.map((r,i)=>({id:'p2'+i,team:'p2',role:r,hp:role(r).hp,x:[2,5,8][i],y:1,def:0,moved:false,attacked:false,special:false}));begin();return}placeTeam='p2';party=party2.slice();$('placementTitle').textContent='2. プレイヤー2の初期配置';$('placementDesc').textContent='上側5列（赤）の空きマスに3体を配置してください。';$('start').textContent='戦闘開始';place();}else begin()}
 let rouletteFirst='p1',cpuStartsFirstTurn=false;
 function showFirstTurnRoulette(){rouletteFirst=Math.random()<0.5?'p1':'p2';turn=rouletteFirst;cpuStartsFirstTurn=gameMode==='cpu'&&rouletteFirst==='p2';energy=6;roundN=1;ended=false;$('placement').classList.add('hidden');$('game').classList.add('hidden');$('rouletteOverlay').classList.remove('hidden');$('rouletteProceed').classList.add('hidden');$('rouletteStatus').textContent='先攻・後攻を抽選中…';$('rouletteResult').textContent='運命のルーレット…';const wheel=$('rouletteWheel');wheel.style.transition='none';wheel.style.transform='rotate(0deg)';void wheel.offsetWidth;const spins=5+Math.floor(Math.random()*4);const duration=3600+Math.floor(Math.random()*1601);const center=rouletteFirst==='p1'?0:180;const endAngle=spins*360+center;wheel.style.transition='transform '+duration+'ms cubic-bezier(.08,.72,.12,1)';wheel.style.transform='rotate('+endAngle+'deg)';setTimeout(()=>{$('rouletteStatus').textContent='抽選結果';$('rouletteResult').textContent=rouletteFirst==='p1'?'PLAYER 1 が先攻！':'PLAYER 2 が先攻！';$('rouletteResult').style.color=rouletteFirst==='p1'?'#79b7ff':'#ff8a91';$('rouletteProceed').classList.remove('hidden')},duration+150)}
 function startBattleAfterRoulette(){$('rouletteOverlay').classList.add('hidden');$('game').classList.remove('hidden');log((gameMode==='cpu'?'CPU戦開始！ プレイヤー1（青）対CPU（赤）。':'友人戦開始！ プレイヤー1（青）対プレイヤー2（赤）。')+(turn==='p1'?' プレイヤー1が先攻。':' プレイヤー2が先攻。'));render();if(gameMode==='cpu'&&turn==='p2')cpuTurn()}
@@ -301,6 +301,7 @@ async function cpuTurn(){if(ended||gameMode!=='cpu'||turn!=='p2'||cpuBusy)return
 const ROOM_FUNCTION_URL = "https://pkpfyklyeeaeiddsuzns.supabase.co/functions/v1/room-manager";
 let onlineRoomToken = null;
 let onlinePlayerId = null;
+let onlineLocalTeam = 'p1';
 async function callRoomManager(action, roomCode) {
   const key = $('sbPublishableKey').value.trim();
   if (!key) throw new Error('Supabase Publishable keyを入力してください。');
@@ -329,6 +330,8 @@ $('createRoom').onclick = async () => {
     onlinePlayerId = data.playerId;
     status.textContent = '作成成功！ ルームコード：' + data.roomCode + ' ／ 状態：' + data.status + '。コードだけ友達に共有してください。トークンは共有しないでください。';
     $('joinRoomCode').value = data.roomCode;
+    $('onlineStatus').insertAdjacentHTML('beforeend', '<br><button id="onlineSetupStart" class="primary" style="margin-top:8px">自分のチームを編成する</button>');
+    $('onlineSetupStart').onclick = () => { gameMode = 'online'; onlineLocalTeam = 'p1'; selectMode('online'); };
   } catch (e) {
     status.textContent = '作成失敗：' + e.message;
   } finally {
@@ -345,6 +348,8 @@ $('joinRoom').onclick = async () => {
     onlineRoomToken = data.token;
     onlinePlayerId = data.playerId;
     status.textContent = '参加成功！ ルームコード：' + data.roomCode + ' ／ 状態：' + data.status + '。トークンは共有しないでください。戦闘同期はまだ未実装です。';
+    status.insertAdjacentHTML('beforeend', '<br><button id="onlineSetupStart" class="primary" style="margin-top:8px">自分のチームを編成する</button>');
+    $('onlineSetupStart').onclick = () => { gameMode = 'online'; onlineLocalTeam = 'p2'; selectMode('online'); };
   } catch (e) {
     status.textContent = '参加失敗：' + e.message;
   } finally {
