@@ -47,7 +47,7 @@
 <label for="sbPublishableKey">Supabase Publishable key（公開キー）</label>
 <input id="sbPublishableKey" type="password" autocomplete="off" placeholder="sb_publishable_..." style="width:100%;margin:6px 0;padding:9px;border-radius:8px;background:#111b28;color:#eef4ff;border:1px solid #50627b">
 <div class="row"><button id="createRoom" class="primary">ルーム作成</button><input id="joinRoomCode" maxlength="6" placeholder="6文字のルームコード" style="flex:1;min-width:150px;padding:9px;border-radius:8px;background:#111b28;color:#eef4ff;border:1px solid #50627b"><button id="joinRoom">参加</button></div>
-<p id="onlineStatus" class="muted">接続前です。Publishable keyを入力してください。</p>
+<p id="onlineStatus" class="muted">接続前です。Publishable keyを入力してください。</p><button id="onlineSetupStart" class="primary hidden" type="button" style="margin-top:8px">自分のチームを編成する</button>
 </div><div id="difficultyPanel" class="hidden"><h3>CPUの強さを選択</h3><p class="muted">あとから編成を選び、戦闘を開始します。</p><div class="row"><button id="easyCpu">初級・やさしい</button><button id="normalCpu" class="primary">中級・ふつう</button><button id="hardCpu">上級・むずかしい</button><button id="expertCpu">最難関</button></div><p id="difficultyDesc" class="muted">中級：基本的に近い敵を狙い、攻撃できる位置まで移動します。</p></div></section>
 <section class="panel hidden" id="setup"><h2 id="setupTitle">1. プレイヤー1のパーティー編成</h2><p class="muted" id="setupDesc">14種類から3体選択。重複OK。</p><div id="cards" class="cards"></div><div id="party"></div><div class="row"><span id="count" class="muted">選択：0 / 3</span><button id="next" class="primary" disabled>配置へ進む</button></div></section>
 <section class="panel hidden" id="placement"><h2 id="placementTitle">2. 初期配置</h2><p class="muted" id="placementDesc">プレイヤー1は下側5列の空きマスに3体を配置してください。</p><div id="placeBtns" class="row"></div><div id="placeBoard"></div><div class="row"><span id="placeCount" class="muted">配置：0 / 3</span><button id="start" class="primary" disabled>配置完了</button></div></section>
@@ -97,7 +97,7 @@ function showPendingLines(){
 function cards(){ $('cards').innerHTML='';R.forEach(r=>{let n=party.filter(x=>x===r.id).length,b=document.createElement('button');b.className='card'+(n?' chosen':'');b.innerHTML='<b>'+r.i+' '+r.n+(n?' ×'+n:'')+'</b><br><span class="muted">HP '+r.hp+' / 攻撃 '+r.a+' / 射程 '+r.r+'</span><br><span class="muted">'+r.s+'</span>';b.onclick=()=>{if(party.length<3)party.push(r.id);else if(n)party.splice(party.lastIndexOf(r.id),1);cards()};$('cards').append(b)});$('party').textContent=party.map(x=>role(x).n).join(' / ');$('count').textContent='選択：'+party.length+' / 3';$('next').disabled=party.length!==3}
 function selectMode(which){gameMode=which;$('modeSelect').classList.add('hidden');$('setup').classList.remove('hidden');setupTeam='p1';party=[];party1=[];party2=[];$('setupTitle').textContent=which==='online'?'自分のパーティー編成':'1. プレイヤー1のパーティー編成';$('setupDesc').textContent='14種類から3体選択。重複OK。';$('next').textContent='配置へ進む';cards()}
 function chooseCpuDifficulty(level){cpuDifficulty=level;selectMode('cpu')}
-function setupNext(){if(party.length!==3)return;if(setupTeam==='p1'){party1=party.slice();p1Placed=[];if(gameMode==='online'){party2=[];placeTeam=onlineLocalTeam;party=party1.slice();place();$('placementTitle').textContent='自分のチームの初期配置';$('placementDesc').textContent='空いているマスに自分の3体を配置してください。配置データのオンライン同期は次の段階で実装します。';$('start').textContent='配置を確定';return}if(gameMode==='cpu'){party2=R.map(r=>r.id).sort(()=>Math.random()-0.5).slice(0,3);placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。CPUの編成は自動で決まります。';$('start').textContent='CPU戦を開始';return}party=[];setupTeam='p2';$('setupTitle').textContent='1. プレイヤー2のパーティー編成';$('setupDesc').textContent='プレイヤー2も14種類から3体選択。重複OK。';$('next').textContent='プレイヤー2の編成を確定';cards()}else{party2=party.slice();placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。';$('start').textContent='プレイヤー1の配置完了';}}
+function setupNext(){if(party.length!==3)return;if(setupTeam==='p1'){party1=party.slice();p1Placed=[];if(gameMode==='online'){party2=[];placeTeam=onlineLocalTeam;party=party1.slice();place();$('placementTitle').textContent='自分のチームの初期配置';$('placementDesc').textContent=(onlineLocalTeam==='p1'?'青チーム：盤面の下側5行（6〜10行目）':'赤チーム：盤面の上側5行（1〜5行目）')+'の空きマスに3体を配置してください。配置データのオンライン同期は次の段階で実装します。';$('start').textContent='配置を確定';return}if(gameMode==='cpu'){party2=R.map(r=>r.id).sort(()=>Math.random()-0.5).slice(0,3);placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。CPUの編成は自動で決まります。';$('start').textContent='CPU戦を開始';return}party=[];setupTeam='p2';$('setupTitle').textContent='1. プレイヤー2のパーティー編成';$('setupDesc').textContent='プレイヤー2も14種類から3体選択。重複OK。';$('next').textContent='プレイヤー2の編成を確定';cards()}else{party2=party.slice();placeTeam='p1';party=party1.slice();place();$('placementTitle').textContent='2. プレイヤー1の初期配置';$('placementDesc').textContent='下側5列（青）の空きマスに3体を配置してください。';$('start').textContent='プレイヤー1の配置完了';}}
 function place(){ $('setup').classList.add('hidden');$('placement').classList.remove('hidden');pu=party.map((r,i)=>({id:placeTeam+i,team:placeTeam,role:r,hp:role(r).hp,x:null,y:null,def:0,moved:false,attacked:false,special:false}));window.placeSel=0;placeBtns();makeBoard($('placeBoard'),true);$('placeCount').textContent='配置：0 / 3';$('start').disabled=true}
 function placeBtns(){$('placeBtns').innerHTML=pu.map((u,i)=>'<button class="'+(i===window.placeSel?'primary':'')+'" onclick="window.placeSel='+i+';placeBtns()">'+(i+1)+'. '+role(u.role).n+(u.x!==null?' ✓':'')+'</button>').join('')}
 function movementSealsFor(unit){return [...new Set(units.filter(v=>v.role==='curse'&&alive(v)).flatMap(c=>c.seals||[]).filter(s=>s.targetId===unit.id).map(s=>s.direction))]}
@@ -324,13 +324,14 @@ $('createRoom').onclick = async () => {
   const status = $('onlineStatus');
   $('createRoom').disabled = true;
   status.textContent = 'ルームを作成中…';
+  $('onlineSetupStart').classList.add('hidden');
   try {
     const data = await callRoomManager('create');
     onlineRoomToken = data.token;
     onlinePlayerId = data.playerId;
     status.textContent = '作成成功！ ルームコード：' + data.roomCode + ' ／ 状態：' + data.status + '。コードだけ友達に共有してください。トークンは共有しないでください。';
     $('joinRoomCode').value = data.roomCode;
-    $('onlineStatus').insertAdjacentHTML('beforeend', '<br><button id="onlineSetupStart" class="primary" style="margin-top:8px">自分のチームを編成する</button>');
+    $('onlineSetupStart').classList.remove('hidden');
     $('onlineSetupStart').onclick = () => { gameMode = 'online'; onlineLocalTeam = 'p1'; selectMode('online'); };
   } catch (e) {
     status.textContent = '作成失敗：' + e.message;
@@ -343,12 +344,13 @@ $('joinRoom').onclick = async () => {
   const code = $('joinRoomCode').value.trim().toUpperCase();
   $('joinRoom').disabled = true;
   status.textContent = 'ルームに参加中…';
+  $('onlineSetupStart').classList.add('hidden');
   try {
     const data = await callRoomManager('join', code);
     onlineRoomToken = data.token;
     onlinePlayerId = data.playerId;
     status.textContent = '参加成功！ ルームコード：' + data.roomCode + ' ／ 状態：' + data.status + '。トークンは共有しないでください。戦闘同期はまだ未実装です。';
-    status.insertAdjacentHTML('beforeend', '<br><button id="onlineSetupStart" class="primary" style="margin-top:8px">自分のチームを編成する</button>');
+    $('onlineSetupStart').classList.remove('hidden');
     $('onlineSetupStart').onclick = () => { gameMode = 'online'; onlineLocalTeam = 'p2'; selectMode('online'); };
   } catch (e) {
     status.textContent = '参加失敗：' + e.message;
