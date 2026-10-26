@@ -148,7 +148,47 @@ function wallDamagePenalty(a,b){
  return crossedWalls.some(w=>a.team!==w.owner);
 }
 function placeClick(x,y){if((placeTeam==='p1'&&y<5)||(placeTeam==='p2'&&y>=5)){return}let u=pu[window.placeSel];if(!u)return;if([...p1Placed,...pu].some(v=>v!==u&&v.x===x&&v.y===y)){return}u.x=x;u.y=y;makeBoard($('placeBoard'),true);placeBtns();let n=pu.filter(v=>v.x!==null).length;$('placeCount').textContent='配置：'+n+' / 3';$('start').disabled=n!==3}
-function placementNext(){if(pu.filter(v=>v.x!==null).length!==3)return;if(gameMode==='online'){p1Placed=pu.map(u=>({...u}));$('placementDesc').textContent='自分のチームの配置を保存しました。この版では相手への送信・戦闘開始同期はまだ未実装です。';$('start').textContent='配置済み';$('start').disabled=true;$('start').insertAdjacentHTML('afterend',' <button id="onlineBack">モード選択へ戻る</button>');$('onlineBack').onclick=()=>location.reload();return}if(placeTeam==='p1'){p1Placed=pu.map(u=>({...u}));if(gameMode==='cpu'){pu=party2.map((r,i)=>({id:'p2'+i,team:'p2',role:r,hp:role(r).hp,x:[2,5,8][i],y:1,def:0,moved:false,attacked:false,special:false}));begin();return}placeTeam='p2';party=party2.slice();$('placementTitle').textContent='2. プレイヤー2の初期配置';$('placementDesc').textContent='上側5列（赤）の空きマスに3体を配置してください。';$('start').textContent='戦闘開始';place();}else begin()}
+async function onlineReadState(){
+  const data=await callRoomManager('loadState',onlineRoomCode);
+  return data.state||data.gameState||data.data||{};
+}
+async function onlineWritePlacement(team, placed){
+  // 既存の相手側データを保って、自分の配置だけを更新する。
+  let state={};
+  try{state=await onlineReadState()}catch(e){/* 初回は空状態として開始 */}
+  if(!state||typeof state!=='object'||Array.isArray(state))state={};
+  state.placements=state.placements&&typeof state.placements==='object'?state.placements:{};
+  state.placements[team]=placed.map(u=>({role:u.role,x:u.x,y:u.y,hp:role(u.role).hp,team}));
+  state.ready=state.ready&&typeof state.ready==='object'?state.ready:{};
+  state.ready[team]=true;
+  await callRoomManager('saveState',onlineRoomCode,{state});
+  onlineLastState=state;
+  onlineShowRemotePlacement(state);
+}
+function onlineShowRemotePlacement(state){
+  const other=onlineLocalTeam==='p1'?'p2':'p1';
+  const remote=state&&state.placements&&state.placements[other];
+  const ready=state&&state.ready&&state.ready[other];
+  const desc=$('placementDesc');
+  if(!desc)return;
+  const teamName=other==='p1'?'ホスト（青）':'参加者（赤）';
+  if(remote&&remote.length===3){
+    desc.textContent='自分の配置を送信済み。'+teamName+'の配置もサーバーに届いています。';
+  }else{
+    desc.textContent='自分の配置を送信済み。相手の配置を待っています…';
+  }
+  if(ready&&remote&&remote.length===3){
+    $('onlineStatus').textContent='両者の配置データを確認できました。戦闘中の行動同期はまだ未実装です。';
+  }
+}
+function onlineStartPolling(){
+  if(onlinePollHandle)clearInterval(onlinePollHandle);
+  onlinePollHandle=setInterval(async()=>{
+    if(gameMode!=='online'||!onlineRoomToken||!onlineRoomCode)return;
+    try{const state=await onlineReadState();onlineLastState=state;onlineShowRemotePlacement(state)}catch(e){/* 一時的な通信失敗は次回再試行 */}
+  },2500);
+}
+function placementNext(){if(pu.filter(v=>v.x!==null).length!==3)return;if(gameMode==='online'){p1Placed=pu.map(u=>({...u}));$('start').disabled=true;$('start').textContent='配置を送信中…';onlineStartPolling();onlineWritePlacement(onlineLocalTeam,pu).then(()=>{$('start').textContent='配置送信済み';$('placementDesc').textContent='配置をサーバーに送信しました。相手の配置を待っています…';}).catch(e=>{$('start').disabled=false;$('start').textContent='再送信';$('placementDesc').textContent='配置の送信に失敗しました：'+e.message+'。もう一度「再送信」を押してください。';});$('start').insertAdjacentHTML('afterend',' <button id="onlineBack">モード選択へ戻る</button>');$('onlineBack').onclick=()=>location.reload();return}if(placeTeam==='p1'){p1Placed=pu.map(u=>({...u}));if(gameMode==='cpu'){pu=party2.map((r,i)=>({id:'p2'+i,team:'p2',role:r,hp:role(r).hp,x:[2,5,8][i],y:1,def:0,moved:false,attacked:false,special:false}));begin();return}placeTeam='p2';party=party2.slice();$('placementTitle').textContent='2. プレイヤー2の初期配置';$('placementDesc').textContent='上側5列（赤）の空きマスに3体を配置してください。';$('start').textContent='戦闘開始';place();}else begin()}
 let rouletteFirst='p1',cpuStartsFirstTurn=false;
 function showFirstTurnRoulette(){rouletteFirst=Math.random()<0.5?'p1':'p2';turn=rouletteFirst;cpuStartsFirstTurn=gameMode==='cpu'&&rouletteFirst==='p2';energy=6;roundN=1;ended=false;$('placement').classList.add('hidden');$('game').classList.add('hidden');$('rouletteOverlay').classList.remove('hidden');$('rouletteProceed').classList.add('hidden');$('rouletteStatus').textContent='先攻・後攻を抽選中…';$('rouletteResult').textContent='運命のルーレット…';const wheel=$('rouletteWheel');wheel.style.transition='none';wheel.style.transform='rotate(0deg)';void wheel.offsetWidth;const spins=5+Math.floor(Math.random()*4);const duration=3600+Math.floor(Math.random()*1601);const center=rouletteFirst==='p1'?0:180;const endAngle=spins*360+center;wheel.style.transition='transform '+duration+'ms cubic-bezier(.08,.72,.12,1)';wheel.style.transform='rotate('+endAngle+'deg)';setTimeout(()=>{$('rouletteStatus').textContent='抽選結果';$('rouletteResult').textContent=rouletteFirst==='p1'?'PLAYER 1 が先攻！':'PLAYER 2 が先攻！';$('rouletteResult').style.color=rouletteFirst==='p1'?'#79b7ff':'#ff8a91';$('rouletteProceed').classList.remove('hidden')},duration+150)}
 function startBattleAfterRoulette(){$('rouletteOverlay').classList.add('hidden');$('game').classList.remove('hidden');log((gameMode==='cpu'?'CPU戦開始！ プレイヤー1（青）対CPU（赤）。':'友人戦開始！ プレイヤー1（青）対プレイヤー2（赤）。')+(turn==='p1'?' プレイヤー1が先攻。':' プレイヤー2が先攻。'));render();if(gameMode==='cpu'&&turn==='p2')cpuTurn()}
@@ -297,16 +337,21 @@ async function cpuTurn(){if(ended||gameMode!=='cpu'||turn!=='p2'||cpuBusy)return
  if((cpuDifficulty==='hard'||cpuDifficulty==='expert'||(cpuDifficulty==='normal'&&Math.random()<0.35))&&!ended&&energy>0){const priest=units.find(v=>alive(v)&&v.team==='p2'&&v.role==='priest'&&!v.special&&(v.specialCharges||0)>0);const hurt=units.filter(v=>alive(v)&&v.team==='p2'&&v.hp<role(v.role).hp-25).sort((a,b)=>(role(b.role).hp-b.hp)-(role(a.role).hp-a.hp));if(priest&&hurt.length){await cpuPause();if(ended||turn!=='p2')return;priest.special=true;priest.specialCharges=Math.max(0,(priest.specialCharges||0)-1);priest.cooldownProgress=0;let healed=0;hurt.slice(0,2).forEach(v=>{const before=v.hp;v.hp=Math.min(role(v.role).hp,v.hp+40);const amount=v.hp-before;if(amount>0){healed++;queueEffect(v,amount,'heal');queueLine(priest,v,'heal');log('CPUの僧侶が回復：'+role(v.role).n+' +'+amount)}});if(healed){log('CPUの僧侶：特殊能力を使用。次の回復まで2ターン');render()}else{priest.special=false;priest.specialCharges=1}}}
  if(!ended){$('notice').textContent='CPUのターン終了。あなたのターンです。';startPlayerTurn('p1',!cpuStartsFirstTurn);cpuStartsFirstTurn=false;} } finally {cpuBusy=false;if(!ended&&gameMode==='cpu'&&turn==='p1'){render();$('notice').textContent='CPUのターン終了。あなたのターンです。';}}}
 
-// オンラインルーム接続（ルーム作成・参加のみ。盤面同期は次段階）
+// オンラインルーム接続（ルーム作成・参加＋初期配置データ同期）
 const ROOM_FUNCTION_URL = "https://pkpfyklyeeaeiddsuzns.supabase.co/functions/v1/room-manager";
 let onlineRoomToken = null;
 let onlinePlayerId = null;
 let onlineLocalTeam = 'p1';
-async function callRoomManager(action, roomCode) {
+let onlineRoomCode = null;
+let onlinePollHandle = null;
+let onlineLastState = null;
+async function callRoomManager(action, roomCode, extra = {}) {
   const key = $('sbPublishableKey').value.trim();
   if (!key) throw new Error('Supabase Publishable keyを入力してください。');
   const payload = { action };
   if (roomCode) payload.roomCode = roomCode;
+  if (onlineRoomToken && action !== 'create' && action !== 'join') payload.token = onlineRoomToken;
+  Object.assign(payload, extra);
   const response = await fetch(ROOM_FUNCTION_URL, {
     method: 'POST',
     headers: {
@@ -329,6 +374,7 @@ $('createRoom').onclick = async () => {
     const data = await callRoomManager('create');
     onlineRoomToken = data.token;
     onlinePlayerId = data.playerId;
+    onlineRoomCode = data.roomCode;
     status.textContent = '作成成功！ ルームコード：' + data.roomCode + ' ／ 状態：' + data.status + '。コードだけ友達に共有してください。トークンは共有しないでください。';
     $('joinRoomCode').value = data.roomCode;
     $('onlineSetupStart').classList.remove('hidden');
@@ -349,6 +395,7 @@ $('joinRoom').onclick = async () => {
     const data = await callRoomManager('join', code);
     onlineRoomToken = data.token;
     onlinePlayerId = data.playerId;
+    onlineRoomCode = data.roomCode;
     status.textContent = '参加成功！ ルームコード：' + data.roomCode + ' ／ 状態：' + data.status + '。トークンは共有しないでください。戦闘同期はまだ未実装です。';
     $('onlineSetupStart').classList.remove('hidden');
     $('onlineSetupStart').onclick = () => { gameMode = 'online'; onlineLocalTeam = 'p2'; selectMode('online'); };
@@ -359,5 +406,5 @@ $('joinRoom').onclick = async () => {
   }
 };
 
-$('cpuMode').onclick=()=>{$('modeButtons').classList.add('hidden');$('difficultyPanel').classList.remove('hidden')};$('friendMode').onclick=()=>selectMode('friend');$('easyCpu').onclick=()=>chooseCpuDifficulty('easy');$('normalCpu').onclick=()=>chooseCpuDifficulty('normal');$('hardCpu').onclick=()=>chooseCpuDifficulty('hard');$('expertCpu').onclick=()=>chooseCpuDifficulty('expert');$('easyCpu').onmouseenter=()=>{$('difficultyDesc').textContent='初級：ときどき行動を見送り、近い敵を狙います。'};$('normalCpu').onmouseenter=()=>{$('difficultyDesc').textContent='中級：近い敵を狙い、攻撃できる位置まで移動。特殊能力はときどき使います。'};$('hardCpu').onmouseenter=()=>{$('difficultyDesc').textContent='上級：HPが少ない敵を狙いやすく、僧侶・薬剤師・魔法使いの能力を有効な場面で使います。'};$('expertCpu').onmouseenter=()=>{$('difficultyDesc').textContent='最難関：敵のHPや距離を考えて狙いを選び、特殊能力を積極的に活用します。'};$('next').onclick=setupNext;$('start').onclick=placementNext;$('move').onclick=()=>{let u=units.find(v=>v.id===sel&&alive(v));if(!u)return;let second=u.role==='cavalry'&&u.moveCount===1;if(!second&&energy<1)return;if(!u.moveRoll){let die=Math.floor(Math.random()*6)+1;u.moveRoll=Math.max(1,die+(u.role==='cavalry'?1:u.role==='sniper'?-2:0)+(u.moveBonus||0));u.moveRollDie=die;log(role(u.role).n+'の移動ロール：'+die+(u.role==='cavalry'?' +1':u.role==='sniper'?' -2':'')+((u.moveBonus||0)?' 薬剤師+ '+u.moveBonus:'')+' → '+u.moveRoll+'マス')}mode='move';$('notice').textContent='このターンの移動距離：最大 '+u.moveRoll+'マス（移動ボタンを押し直しても変わりません）。移動先をタップ';render()};$('attack').onclick=()=>{mode='attack';$('notice').textContent='射程内の敵をタップ';render()};$('special').onclick=special;$('end').onclick=endTurn;$('rematch').onclick=rematch;$('newParty').onclick=chooseNewParty;$('rouletteProceed').onclick=startBattleAfterRoulette;$('cpuSpeed').onchange=()=>{cpuActionDelay=Number($('cpuSpeed').value)||1200};$('cpuSpeedBox').classList.add('hidden');cards();
+$('cpuMode').onclick=()=>{$('modeButtons').classList.add('hidden');$('difficultyPanel').classList.remove('hidden')};$('friendMode').onclick=()=>selectMode('friend');$('easyCpu').onclick=()=>chooseCpuDifficulty('easy');$('normalCpu').onclick=()=>chooseCpuDifficulty('normal');$('hardCpu').onclick=()=>chooseCpuDifficulty('hard');$('expertCpu').onclick=()=>chooseCpuDifficulty('expert');$('easyCpu').onmouseenter=()=>{$('difficultyDesc').textContent='初級：ときどき行動を見送り、近い敵を狙います。'};$('normalCpu').onmouseenter=()=>{$('difficultyDesc').textContent='中級：近い敵を狙い、攻撃できる位置まで移動。特殊能力はときどき使います。'};$('hardCpu').onmouseenter=()=>{$('difficultyDesc').textContent='上級：HPが少ない敵を狙いやすく、僧侶・薬剤師・魔法使いの能力を有効な場面で使います。'};$('expertCpu').onmouseenter=()=>{$('difficultyDesc').textContent='最難関：敵のHPや距離を考えて狙いを選び、特殊能力を積極的に活用します。'};$('next').onclick=setupNext;$('start').onclick=()=>{if(gameMode==='online'&&pu.filter(v=>v.x!==null).length===3&&$('start').textContent==='再送信'){onlineWritePlacement(onlineLocalTeam,pu).then(()=>{$('start').textContent='配置送信済み';$('start').disabled=true}).catch(e=>{$('placementDesc').textContent='送信失敗：'+e.message})}else placementNext()};$('move').onclick=()=>{let u=units.find(v=>v.id===sel&&alive(v));if(!u)return;let second=u.role==='cavalry'&&u.moveCount===1;if(!second&&energy<1)return;if(!u.moveRoll){let die=Math.floor(Math.random()*6)+1;u.moveRoll=Math.max(1,die+(u.role==='cavalry'?1:u.role==='sniper'?-2:0)+(u.moveBonus||0));u.moveRollDie=die;log(role(u.role).n+'の移動ロール：'+die+(u.role==='cavalry'?' +1':u.role==='sniper'?' -2':'')+((u.moveBonus||0)?' 薬剤師+ '+u.moveBonus:'')+' → '+u.moveRoll+'マス')}mode='move';$('notice').textContent='このターンの移動距離：最大 '+u.moveRoll+'マス（移動ボタンを押し直しても変わりません）。移動先をタップ';render()};$('attack').onclick=()=>{mode='attack';$('notice').textContent='射程内の敵をタップ';render()};$('special').onclick=special;$('end').onclick=endTurn;$('rematch').onclick=rematch;$('newParty').onclick=chooseNewParty;$('rouletteProceed').onclick=startBattleAfterRoulette;$('cpuSpeed').onchange=()=>{cpuActionDelay=Number($('cpuSpeed').value)||1200};$('cpuSpeedBox').classList.add('hidden');cards();
 </script></body></html>
