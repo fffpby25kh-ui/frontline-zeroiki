@@ -151,19 +151,47 @@ async function onlineReadState(){
   return data.state||data.gameState||data.data||{};
 }
 async function onlineWritePlacement(team, placed){
-  // 既存の相手側データを保って、自分の配置だけを更新する。
-  let state={};
-  try{state=await onlineReadState()}catch(e){/* 初回は空状態として開始 */}
-  if(!state||typeof state!=='object'||Array.isArray(state))state={};
-  state.placements=state.placements&&typeof state.placements==='object'?state.placements:{};
-  state.placements[team]=placed.map(u=>({role:u.role,x:u.x,y:u.y,hp:role(u.role).hp,team}));
-  state.ready=state.ready&&typeof state.ready==='object'?state.ready:{};
-  state.ready[team]=true;
-  await callRoomManager('saveState',onlineRoomCode,{state});
-  onlineLastState=state;
+  let state = {};
+  try {
+    state = await onlineReadState();
+  } catch (e) {
+    // 初回は空状態から開始
+  }
+
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    state = {};
+  }
+
+  state.placements =
+    state.placements && typeof state.placements === 'object'
+      ? state.placements
+      : {};
+
+  state.placements[team] = placed.map(u => ({
+    role: u.role,
+    x: u.x,
+    y: u.y,
+    hp: role(u.role).hp,
+    team
+  }));
+
+  state.ready =
+    state.ready && typeof state.ready === 'object'
+      ? state.ready
+      : {};
+
+  state.ready[team] = true;
+
+  await callRoomManager(
+    'saveState',
+    onlineRoomCode,
+    { gameState: state }
+  );
+
+  onlineLastState = state;
   onlineShowRemotePlacement(state);
 }
-function onlineShowRemotePlacement(state){
+ function onlineShowRemotePlacement(state){
   const other=onlineLocalTeam==='p1'?'p2':'p1';
   const remote=state&&state.placements&&state.placements[other];
   const ready=state&&state.ready&&state.ready[other];
