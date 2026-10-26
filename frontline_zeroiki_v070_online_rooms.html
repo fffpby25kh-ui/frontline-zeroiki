@@ -44,10 +44,8 @@
 <div class="box" id="onlinePanel">
 <h3>オンライン対戦（ルーム機能テスト）</h3>
 <p class="muted">ルームを作成してコードを共有するか、友達のコードで参加します。現在はルーム接続までで、戦闘盤面の同期は未実装です。</p>
-<label for="sbPublishableKey">Supabase Publishable key（公開キー）</label>
-<input id="sbPublishableKey" type="password" autocomplete="off" placeholder="sb_publishable_..." style="width:100%;margin:6px 0;padding:9px;border-radius:8px;background:#111b28;color:#eef4ff;border:1px solid #50627b">
 <div class="row"><button id="createRoom" class="primary">ルーム作成</button><input id="joinRoomCode" maxlength="6" placeholder="6文字のルームコード" style="flex:1;min-width:150px;padding:9px;border-radius:8px;background:#111b28;color:#eef4ff;border:1px solid #50627b"><button id="joinRoom">参加</button></div>
-<p id="onlineStatus" class="muted">接続前です。Publishable keyを入力してください。</p><button id="onlineSetupStart" class="primary hidden" type="button" style="margin-top:8px">自分のチームを編成する</button>
+<p id="onlineStatus" class="muted">接続前です。ルーム作成または参加時に公開キーを初回入力します。</p><button id="onlineSetupStart" class="primary hidden" type="button" style="margin-top:8px">自分のチームを編成する</button>
 </div><div id="difficultyPanel" class="hidden"><h3>CPUの強さを選択</h3><p class="muted">あとから編成を選び、戦闘を開始します。</p><div class="row"><button id="easyCpu">初級・やさしい</button><button id="normalCpu" class="primary">中級・ふつう</button><button id="hardCpu">上級・むずかしい</button><button id="expertCpu">最難関</button></div><p id="difficultyDesc" class="muted">中級：基本的に近い敵を狙い、攻撃できる位置まで移動します。</p></div></section>
 <section class="panel hidden" id="setup"><h2 id="setupTitle">1. プレイヤー1のパーティー編成</h2><p class="muted" id="setupDesc">14種類から3体選択。重複OK。</p><div id="cards" class="cards"></div><div id="party"></div><div class="row"><span id="count" class="muted">選択：0 / 3</span><button id="next" class="primary" disabled>配置へ進む</button></div></section>
 <section class="panel hidden" id="placement"><h2 id="placementTitle">2. 初期配置</h2><p class="muted" id="placementDesc">プレイヤー1は下側5列の空きマスに3体を配置してください。</p><div id="placeBtns" class="row"></div><div id="placeBoard"></div><div class="row"><span id="placeCount" class="muted">配置：0 / 3</span><button id="start" class="primary" disabled>配置完了</button></div></section>
@@ -346,8 +344,13 @@ let onlineRoomCode = null;
 let onlinePollHandle = null;
 let onlineLastState = null;
 async function callRoomManager(action, roomCode, extra = {}) {
-  const key = $('sbPublishableKey').value.trim();
-  if (!key) throw new Error('Supabase Publishable keyを入力してください。');
+  let key = localStorage.getItem('frontline_supabase_publishable_key') || '';
+  if (!key) {
+    key = (window.prompt('Supabase Publishable keyを入力してください（公開キー）。このブラウザに保存され、次回から入力不要です。') || '').trim();
+    if (!key) throw new Error('公開キーが入力されていません。');
+    if (!key.startsWith('sb_publishable_') && !key.startsWith('eyJ')) throw new Error('公開キーの形式を確認してください。');
+    localStorage.setItem('frontline_supabase_publishable_key', key);
+  }
   const payload = { action };
   if (roomCode) payload.roomCode = roomCode;
   if (onlineRoomToken && action !== 'create' && action !== 'join') payload.token = onlineRoomToken;
